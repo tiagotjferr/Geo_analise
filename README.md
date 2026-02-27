@@ -29,4 +29,3 @@ Este repositório contém scripts do Google Earth Engine (GEE) para análise de 
 - Abra o script desejado no GEE Code Editor.
 - Defina `table` (e `table2` se aplicável) com seus assets.
 - Ajuste as opções no painel do app e clique no mapa para gerar a série temporal e os cards.
-
