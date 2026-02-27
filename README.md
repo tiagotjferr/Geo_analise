@@ -22,7 +22,7 @@ Este repositório contém scripts do Google Earth Engine (GEE) para análise de 
 - **Objetivo**: listar **imagens disponíveis** no período informado (sem agregação diária/semanal), exibindo cada cena individualmente.
 - **Fonte de dados**: `COPERNICUS/S2_SR_HARMONIZED`.
 - **Entrada principal**: `table` e `table2` opcional.
-- **Parâmetros-chave**: data inicial/final (AAAA-MM-DD), % máximo de nuvem, buffer de média, zoom e dimensões do card.
+- **Parâmetros-chave**: data inicial/final (DD-MM-AAAA), % máximo de nuvem, buffer de média, zoom e dimensões do card.
 - **Saídas**: cards por imagem disponível, gráfico de séries temporais (NDVI/NBR) e exportação Drive das bandas `B11/B8/B3`.
 
 ## Como usar (resumo)
