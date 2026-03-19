@@ -2,6 +2,12 @@
 
 Este repositório contém scripts do Google Earth Engine (GEE) para análise de séries temporais de desmatamento e geração de cartões de imagem com exportação para o Google Drive.
 
+## Funcionalidades dos cards
+- **Legenda enriquecida**: quando `table2` é fornecida, a legenda “Área Imóvel” exibe o tamanho em hectares (ex.: `Área Imóvel: 123,45 ha`).
+- **Percentual de dano**: quando `table2` é fornecida, o percentual `Dano/Imóvel` é exibido após as coordenadas do centroide.
+- **Tabela de vértices**: ao final dos cards, é gerada uma tabela com os vértices do polígono de dano ambiental.
+- **Formato das coordenadas**: `XX°XX'XX,XX"S XX°XX'XX,XX"W` (DMS com hemisfério e duas casas decimais nos segundos).
+
 ## Scripts
 
 ### Script_Anual_LandSat.js

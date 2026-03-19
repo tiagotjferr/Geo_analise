@@ -18,25 +18,25 @@
 // ########################## PROGRESSÃO DESMATAMENTO MÊS A MÊS ###########################
 
 // Parâmetros para exportação da imagem
-var inputInitChipWidth = 1;
-var crsExportImage = 'EPSG:31980';
-var processFolder = 'EarthEngine';
+var inputInitChipWidth = 1;             // Área de corte da imagem; De 1 a 50km
+var crsExportImage = 'EPSG:31980';      // CRS para exportação
+var processFolder = 'EarthEngine';      // Pasta para armazenamento no Google Drive
 
 // Parâmetros do estudo
 var featTable = ee.FeatureCollection(table);
 var featTable2 = (typeof table2 !== 'undefined') ? ee.FeatureCollection(table2) : null;
-var inputStartYear = 2020;
-var inputStartMonth = 1;
-var inputEndYear = 2021;
-var inputEndMonth = 12;
-var aoiCircleBuffer = 4;
-var inputCloudPercent = 50;
-var legendLabelDano = 'Dano Ambiental';
-var legendLabelAreaImovel = 'Área Imóvel';
+var inputStartYear = 2020;              // Ano inicial do estudo
+var inputStartMonth = 1;                // Mês inicial do estudo
+var inputEndYear = 2021;                // Ano final do estudo
+var inputEndMonth = 12;                 // Mês final do estudo (12 para dezembro)
+var aoiCircleBuffer = 4;                
+var inputCloudPercent = 50;             // Porcentagem máxima de nuvem permitida na imagem
+var legendLabelDano = 'Dano Ambiental'; // Legenda para dano ambiental
+var legendLabelAreaImovel = 'Área Imóvel'; // Legenda para área imóvel
 
 // Parâmetros de visualização no aplicativo
 var zoomLevelAoi = 10;
-var inputDimension = '350';
+var inputDimension = '350';           // Dimensão da imagem; De 100 a 500px
 
 // #############################################################################
 // ### IMPORT MODULES ###
@@ -528,6 +528,44 @@ function formatDmsSimple(value) {
   return sign + deg + '°' + padLeft(min, 2) + '\'' + padLeft(sec, 2) + '"';
 }
 
+function formatDmsHemi(value, isLat) {
+  var abs = Math.abs(value);
+  var deg = Math.floor(abs);
+  var minFloat = (abs - deg) * 60;
+  var min = Math.floor(minFloat);
+  var sec = (minFloat - min) * 60;
+  if (sec >= 59.995) {
+    sec = 0;
+    min += 1;
+  }
+  if (min === 60) {
+    min = 0;
+    deg += 1;
+  }
+  var degWidth = isLat ? 2 : 3;
+  var hemi = isLat ? (value >= 0 ? 'N' : 'S') : (value >= 0 ? 'E' : 'W');
+  var secText = String(sec.toFixed(2)).replace('.', ',');
+  return padLeft(deg, degWidth) + '°' + padLeft(min, 2) + '\'' + padLeft(secText, 5) + '"' + hemi;
+}
+
+function collectVertices(coords) {
+  var points = [];
+  var walk = function(node) {
+    if (!node) {
+      return;
+    }
+    if (typeof node[0] === 'number' && typeof node[1] === 'number') {
+      points.push(node);
+      return;
+    }
+    for (var i = 0; i < node.length; i += 1) {
+      walk(node[i]);
+    }
+  };
+  walk(coords);
+  return points;
+}
+
 // Atualiza rótulos DMS a partir do retângulo de visualização
 function updateDmsLabels(aoiBox) {
   aoiBox.bounds().coordinates().evaluate(function(coords) {
@@ -560,7 +598,7 @@ function createFrameImage(aoiBox) {
 }
 
 // Monta e exibe os cards de imagem e exportações para Drive
-function displayBrowseImg(col, aoiBox, aoiCircle, aoiArea, aoiArea2, centroidCoords, areaHaText) {
+function displayBrowseImg(col, aoiBox, aoiCircle, aoiArea, aoiArea2, centroidCoords, areaHaText, areaImovelHaText, percentualDanoText, verticesCoords) {
   clearImgs();
   waitMsgImgPanel.style().set('shown', true);
   imgCardPanel.add(waitMsgImgPanel);
@@ -569,20 +607,28 @@ function displayBrowseImg(col, aoiBox, aoiCircle, aoiArea, aoiArea2, centroidCoo
   var satellites = col.aggregate_array('satellites');
   var orbitPoints = col.aggregate_array('orbit_point');
  
-  ee.Dictionary({dates: dates, satellites: satellites, orbitPoints: orbitPoints, areaHa: areaHaText, centroid: centroidCoords}).evaluate(function(result) {
+  ee.Dictionary({dates: dates, satellites: satellites, orbitPoints: orbitPoints, areaHa: areaHaText, areaImovelHa: areaImovelHaText, percentualDano: percentualDanoText, centroid: centroidCoords, vertices: verticesCoords}).evaluate(function(result) {
     var datesList = (result && result.dates) ? result.dates : [];
     var satellitesList = (result && result.satellites) ? result.satellites : [];
     var orbitPointsList = (result && result.orbitPoints) ? result.orbitPoints : [];
     var areaHaValue = (result && result.areaHa) ? result.areaHa : null;
+    var areaImovelHaValue = (result && result.areaImovelHa) ? result.areaImovelHa : null;
+    var percentualDanoValue = (result && result.percentualDano) ? result.percentualDano : null;
     var centroid = (result && result.centroid) ? result.centroid : null;
+    var vertices = (result && result.vertices) ? result.vertices : null;
+    var verticesList = vertices ? collectVertices(vertices) : [];
+    var verticesPanel = null;
     var dmsLat = (centroid && centroid.length > 1) ? formatDmsSimple(centroid[1]) : '';
     var dmsLon = (centroid && centroid.length > 0) ? formatDmsSimple(centroid[0]) : '';
     var infoText = '';
     if (areaHaValue) {
-      infoText = 'Área: ' + areaHaValue + ' ha';
+      infoText = 'Área: ' + String(areaHaValue).replace('.', ',') + ' ha';
     }
     if (dmsLat && dmsLon) {
       infoText = infoText ? (infoText + ' | ' + dmsLat + ' ' + dmsLon) : (dmsLat + ' ' + dmsLon);
+      if (aoiArea2 && percentualDanoValue) {
+        infoText = infoText + ' | Dano/Imóvel: ' + String(percentualDanoValue).replace('.', ',') + '%';
+      }
     }
     waitMsgImgPanel.style().set('shown', false);
     datesList.forEach(function(date, index) {
@@ -633,6 +679,9 @@ function displayBrowseImg(col, aoiBox, aoiCircle, aoiArea, aoiArea2, centroidCoo
       legendRow.add(legendItemColor1);
       legendRow.add(legendItemText1);
       if (aoiArea2) {
+        if (areaImovelHaValue) {
+          legendLabelB = legendLabelB + ': ' + String(areaImovelHaValue).replace('.', ',') + ' ha';
+        }
         var legendItemColor2 = ui.Label('', {backgroundColor: '0000ff', padding: '6px', margin: '0px 6px 0px 0px'});
         var legendItemText2 = ui.Label(legendLabelB, {fontSize: '11px', margin: '0px'});
         legendRow.add(legendItemColor2);
@@ -668,12 +717,32 @@ function displayBrowseImg(col, aoiBox, aoiCircle, aoiArea, aoiArea2, centroidCoo
       });
      
     });
+    if (verticesList.length) {
+      var header = ui.Label('Vértices do dano ambiental', {margin: '4px 4px 2px 8px', fontSize: '12px', fontWeight: 'bold'});
+      var rows = verticesList.map(function(pt, idx) {
+        var text = padLeft(idx + 1, 2) + ': ' + formatDmsHemi(pt[1], true) + ' ' + formatDmsHemi(pt[0], false);
+        return ui.Label(text, {margin: '0px 4px 2px 8px', fontSize: '11px'});
+      });
+      verticesPanel = ui.Panel([header].concat(rows), null, {margin: '2px 4px 4px 4px'});
+      imgCardPanel.add(verticesPanel);
+    }
   });
 }
 
 // Orquestra o processamento de coleção, cards e gráfico
 function renderGraphics(coords) {
-  var visParams = RGB_PARAMS[rgbSelect.getValue()];
+  var safeRgbKey = rgbSelect.getValue();
+  var visParams = RGB_PARAMS[safeRgbKey];
+  if (!visParams) {
+    safeRgbKey = rgbList[0];
+    visParams = RGB_PARAMS[safeRgbKey];
+    rgbSelect.setValue(safeRgbKey, false);
+  }
+  var safeIndex = indexSelect.getValue();
+  if (!safeIndex || indexList.indexOf(safeIndex) === -1) {
+    safeIndex = initIndex;
+    indexSelect.setValue(safeIndex, false);
+  }
   var currentStartYear = parseInt(startYearBox.getValue(), 10);
   var currentEndYear = parseInt(endYearBox.getValue(), 10);
   var currentStartMonth = parseMonth(startMonthBox.getValue(), inputStartMonth);
@@ -688,7 +757,20 @@ function renderGraphics(coords) {
   var aoiArea = ee.FeatureCollection(table);
   var aoiArea2 = featTable2;
   var areaGeometry = aoiArea.geometry();
-  var areaHaText = areaGeometry.area({maxError: 1, proj: ee.Projection(crsExportImage)}).divide(10000).format('%.2f');
+  var verticesCoords = areaGeometry.coordinates();
+  var areaDanoM2 = areaGeometry.area({maxError: 1, proj: ee.Projection(crsExportImage)});
+  var areaHaText = areaDanoM2.divide(10000).format('%.2f');
+  var areaImovelHaText = null;
+  var percentualDanoText = null;
+  if (aoiArea2) {
+    var areaImovelM2 = aoiArea2.geometry().area({maxError: 1, proj: ee.Projection(crsExportImage)});
+    areaImovelHaText = areaImovelM2.divide(10000).format('%.2f');
+    percentualDanoText = ee.Algorithms.If(
+      areaImovelM2.gt(0),
+      areaDanoM2.divide(areaImovelM2).multiply(100).format('%.2f'),
+      null
+    );
+  }
   var areaCentroidCoords = areaGeometry.centroid().coordinates();
  
   // Limpa camadas anteriores do mapa
@@ -729,10 +811,11 @@ function renderGraphics(coords) {
   ).sort('system:time_start');
 
   // Exibe cards e gráfico temporal
-  displayBrowseImg(col, aoiBox, aoiCircle, aoiArea, aoiArea2, areaCentroidCoords, areaHaText);
-  OPTIONAL_PARAMS['chartParams']['vAxis']['title'] = indexSelect.getValue();
+  displayBrowseImg(col, aoiBox, aoiCircle, aoiArea, aoiArea2, areaCentroidCoords, areaHaText, areaImovelHaText, percentualDanoText, verticesCoords);
+  OPTIONAL_PARAMS['chartParams']['vAxis']['title'] = safeIndex;
  
-  rgbTs.rgbTimeSeriesChart(col, aoiCircle, indexSelect.getValue(), visParams,
+  chartPanel.clear();
+  rgbTs.rgbTimeSeriesChart(col, aoiCircle, safeIndex, visParams,
     chartPanel, OPTIONAL_PARAMS);
 }
 
@@ -748,6 +831,11 @@ function handleMapClick(coords) {
 
 // Evento do botão de submissão das opções
 function handleSubmitClick() {
+  if (!COORDS || COORDS.length !== 2) {
+    chartPanel.clear();
+    chartPanel.add(ui.Label('Selecione um ponto no mapa antes de submeter.', infoFont));
+    return;
+  }
   renderGraphics(COORDS);
   submitButton.style().set('shown', false);
 }
